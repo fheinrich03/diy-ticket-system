@@ -1,0 +1,222 @@
+function sendRegistrationEmail(name, email, adults, kids, total, code) {
+  const subject = `Anmeldung ${EVENT_NAME} — Zahlung ausstehend`;
+
+  const html = `
+<html>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 0">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#1a5276;padding:28px 32px;text-align:center">
+            <p style="margin:0;color:#d4ac0d;font-size:13px;letter-spacing:2px;text-transform:uppercase">${ORG_NAME}</p>
+            <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px">${EVENT_NAME}</h1>
+            <p style="margin:6px 0 0;color:#aed6f1;font-size:14px">${EVENT_DATE}</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px">
+            <p style="margin:0 0 16px;font-size:16px;color:#333">Assalamu Alaikum <strong>${name}</strong>,</p>
+            <p style="margin:0 0 24px;color:#555;line-height:1.6">
+              deine Anmeldung ist eingegangen! Bitte überweise den Betrag bis zum
+              <strong>${PAYMENT_DEADLINE}</strong>, damit dein Ticket reserviert bleibt.
+            </p>
+
+            <!-- Ticket-Übersicht -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:6px;margin-bottom:24px">
+              <tr>
+                <td style="padding:16px 20px;border-bottom:1px solid #e9ecef;color:#555;font-size:14px">Erwachsene</td>
+                <td style="padding:16px 20px;border-bottom:1px solid #e9ecef;color:#333;font-weight:bold;text-align:right">${adults} × ${PRICE_ADULT} €</td>
+              </tr>
+              <tr>
+                <td style="padding:16px 20px;border-bottom:1px solid #e9ecef;color:#555;font-size:14px">Kinder</td>
+                <td style="padding:16px 20px;border-bottom:1px solid #e9ecef;color:#333;font-weight:bold;text-align:right">${kids} × ${PRICE_KID} €</td>
+              </tr>
+              <tr>
+                <td style="padding:16px 20px;color:#1a5276;font-weight:bold">Gesamtbetrag</td>
+                <td style="padding:16px 20px;color:#1a5276;font-weight:bold;text-align:right;font-size:20px">${total} €</td>
+              </tr>
+            </table>
+
+            <!-- Zahlungsbox -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #1a5276;border-radius:6px;margin-bottom:24px">
+              <tr>
+                <td style="background:#1a5276;padding:10px 20px">
+                  <p style="margin:0;color:#fff;font-weight:bold;font-size:14px">Banküberweisung</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 20px">
+                  <table cellpadding="4" style="font-size:14px;color:#333;width:100%">
+                    <tr>
+                      <td style="color:#777;width:160px">IBAN</td>
+                      <td><strong>${IBAN}</strong></td>
+                    </tr>
+                    <tr>
+                      <td style="color:#777">Verwendungszweck</td>
+                      <td><strong style="color:#c0392b;font-size:16px;letter-spacing:1px">${code}</strong></td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- PayPal -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e9ecef;border-radius:6px;margin-bottom:24px">
+              <tr>
+                <td style="background:#f8f9fa;padding:10px 20px">
+                  <p style="margin:0;color:#555;font-weight:bold;font-size:14px">PayPal (Freunde &amp; Familie)</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 20px;font-size:14px;color:#333">
+                  <table cellpadding="4" style="width:100%">
+                    <tr>
+                      <td style="color:#777;width:160px">Link</td>
+                      <td><a href="https://${PAYPAL_LINK}" style="color:#1a5276">${PAYPAL_LINK}</a></td>
+                    </tr>
+                    <tr>
+                      <td style="color:#777">Betreff</td>
+                      <td><strong style="color:#c0392b;font-size:16px;letter-spacing:1px">${code}</strong></td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <p style="color:#777;font-size:13px;line-height:1.6;margin:0 0 24px">
+              Nach Zahlungseingang erhältst du dein Ticket per E-Mail. Bitte gib bei der Zahlung
+              unbedingt deinen Code als Verwendungszweck an, damit wir deine Zahlung zuordnen können.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8f9fa;padding:20px 32px;text-align:center;border-top:1px solid #e9ecef">
+            <p style="margin:0;color:#aaa;font-size:12px">JazakAllahu khairan — ${ORG_NAME}</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  GmailApp.sendEmail(email, subject, `Dein Anmeldecode: ${code} | Gesamtbetrag: ${total} €`, {
+    htmlBody: html,
+  });
+}
+
+
+function sendTicketEmail(sheet, row) {
+  const name        = sheet.getRange(row, COL_NAME).getValue();
+  const code        = sheet.getRange(row, COL_CODE).getValue();
+  const email       = sheet.getRange(row, COL_EMAIL).getValue();
+  const adults      = sheet.getRange(row, COL_ADULTS).getValue();
+  const kids        = sheet.getRange(row, COL_KIDS).getValue();
+  const method      = sheet.getRange(row, COL_METHOD).getValue();
+  const total       = sheet.getRange(row, COL_TOTAL).getValue();
+
+  const sheetId  = sheet.getParent().getId();
+  const gid      = sheet.getSheetId();
+  const rowLink  = `https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=${gid}&range=${row}:${row}`;
+  const qrUrl    = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(rowLink)}`;
+  const qrBlob   = UrlFetchApp.fetch(qrUrl).getBlob().setName("ticket-qr.png");
+
+  const subject = `Dein Ticket — ${EVENT_NAME} (Code: ${code})`;
+
+  const html = `
+<html>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 0">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#1a5276;padding:28px 32px;text-align:center">
+            <p style="margin:0;color:#d4ac0d;font-size:13px;letter-spacing:2px;text-transform:uppercase">${ORG_NAME}</p>
+            <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px">${EVENT_NAME}</h1>
+            <p style="margin:6px 0 0;color:#aed6f1;font-size:14px">${EVENT_DATE}</p>
+          </td>
+        </tr>
+
+        <!-- Bestätigung -->
+        <tr>
+          <td style="background:#d5f5e3;padding:14px 32px;text-align:center">
+            <p style="margin:0;color:#1e8449;font-weight:bold;font-size:15px">✓ Zahlung bestätigt — Dein Ticket ist gültig</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px">
+            <p style="margin:0 0 20px;font-size:16px;color:#333">Assalamu Alaikum <strong>${name}</strong>,</p>
+
+            <!-- Ticketdetails -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:6px;margin-bottom:28px">
+              <tr>
+                <td style="padding:12px 20px;border-bottom:1px solid #e9ecef;color:#777;font-size:13px">Erwachsene</td>
+                <td style="padding:12px 20px;border-bottom:1px solid #e9ecef;color:#333;font-weight:bold;text-align:right">${adults}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px 20px;border-bottom:1px solid #e9ecef;color:#777;font-size:13px">Kinder</td>
+                <td style="padding:12px 20px;border-bottom:1px solid #e9ecef;color:#333;font-weight:bold;text-align:right">${kids}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px 20px;border-bottom:1px solid #e9ecef;color:#777;font-size:13px">Bezahlter Betrag</td>
+                <td style="padding:12px 20px;border-bottom:1px solid #e9ecef;color:#1e8449;font-weight:bold;text-align:right">${total} €</td>
+              </tr>
+              <tr>
+                <td style="padding:12px 20px;color:#777;font-size:13px">Zahlungsmethode</td>
+                <td style="padding:12px 20px;color:#333;font-weight:bold;text-align:right">${method}</td>
+              </tr>
+            </table>
+
+            <!-- QR-Code Box -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #1a5276;border-radius:6px;margin-bottom:24px">
+              <tr>
+                <td style="background:#1a5276;padding:10px 20px;text-align:center">
+                  <p style="margin:0;color:#fff;font-weight:bold;font-size:14px">Einlass-QR-Code — beim Einlass vorzeigen</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:24px;text-align:center">
+                  <img src="cid:qrCode" width="220" height="220" alt="Einlass-QR-Code"
+                    style="display:block;margin:0 auto" />
+                  <p style="margin:16px 0 0;font-size:13px;color:#777">Code: <strong style="color:#1a5276;letter-spacing:2px;font-size:16px">${code}</strong></p>
+                </td>
+              </tr>
+            </table>
+
+            <p style="color:#777;font-size:13px;line-height:1.6;margin:0 0 8px">
+              Bitte zeige diesen QR-Code beim Einlass vor. Der Code ist personalisiert und gilt nur für deine Anmeldung.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8f9fa;padding:20px 32px;text-align:center;border-top:1px solid #e9ecef">
+            <p style="margin:0 0 4px;color:#1a5276;font-weight:bold;font-size:14px">Eid Adha Mubarak!</p>
+            <p style="margin:0;color:#aaa;font-size:12px">JazakAllahu khairan — ${ORG_NAME}</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  GmailApp.sendEmail(email, subject, `Dein Ticket-Code: ${code}`, {
+    htmlBody: html,
+    inlineImages: { qrCode: qrBlob },
+  });
+}
