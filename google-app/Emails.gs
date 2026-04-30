@@ -53,6 +53,10 @@ function sendRegistrationEmail(name, email, adults, kids, total, code) {
                 <td style="padding:16px 20px">
                   <table cellpadding="4" style="font-size:14px;color:#333;width:100%">
                     <tr>
+                      <td style="color:#777;width:160px">Zahlungsempfänger</td>
+                      <td><strong>Eid Fest</strong></td>
+                    </tr>
+                    <tr>
                       <td style="color:#777;width:160px">IBAN</td>
                       <td><strong>${IBAN}</strong></td>
                     </tr>
