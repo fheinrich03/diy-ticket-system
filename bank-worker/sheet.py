@@ -12,9 +12,9 @@ SHEET_COL_BEZAHLT_EUR = 10  # J
 SHEET_COL_TOTAL       = 9   # I
 SHEET_COL_PAID        = 4   # D
 
-COLOR_PAID_EXACT   = "#34a853"  # grün — genau bezahlt
+COLOR_PAID_EXACT   = "#8efaab"  # grün — genau bezahlt
 COLOR_PAID_OVER    = "#b7e1cd"  # hellgrün — zu viel bezahlt
-COLOR_PAID_PARTIAL = "#fbbc04"  # gelb — teilbezahlt
+COLOR_PAID_PARTIAL = "#fadc82"  # gelb — teilbezahlt
 
 log = logging.getLogger(__name__)
 
