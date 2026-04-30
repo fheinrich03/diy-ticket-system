@@ -97,7 +97,6 @@ function sendTicketEmail(sheet, row) {
   const email       = sheet.getRange(row, COL_EMAIL).getValue();
   const adults      = sheet.getRange(row, COL_ADULTS).getValue();
   const kids        = sheet.getRange(row, COL_KIDS).getValue();
-  const method      = sheet.getRange(row, COL_METHOD).getValue();
   const total       = sheet.getRange(row, COL_TOTAL).getValue();
 
   const sheetId  = sheet.getParent().getId();
@@ -152,7 +151,7 @@ function sendTicketEmail(sheet, row) {
               </tr>
               <tr>
                 <td style="padding:12px 20px;color:#777;font-size:13px">Zahlungsmethode</td>
-                <td style="padding:12px 20px;color:#333;font-weight:bold;text-align:right">${method}</td>
+                <td style="padding:12px 20px;color:#333;font-weight:bold;text-align:right">Banküberweisung</td>
               </tr>
             </table>
 
