@@ -80,19 +80,27 @@ class ComdirectClient:
         return sessions[0] if sessions else {}
 
     def request_tan(self, session_id: str) -> str:
-        """Step 3: trigger PushTAN on phone. Returns challenge id from x-once-authentication-info."""
+        """Step 3: trigger P_TAN_PUSH on phone. Returns challenge id from x-once-authentication-info."""
+        headers = self._auth_headers()
+        headers["x-once-authentication-info"] = json.dumps({"typ": "P_TAN_PUSH"})
         resp = self.session.post(
             f"{BASE_URL}/api/session/clients/user/v1/sessions/{session_id}/validate",
             json={"identifier": session_id, "sessionTanActive": True, "activated2FA": True},
-            headers=self._auth_headers(),
+            headers=headers,
         )
+        print(f"[DEBUG] request_tan status: {resp.status_code}")
+        print(f"[DEBUG] request_tan x-once-authentication-info: {resp.headers.get('x-once-authentication-info')}")
         resp.raise_for_status()
         auth_info_raw = resp.headers.get("x-once-authentication-info", "{}")
         challenge_id = json.loads(auth_info_raw).get("id", "")
+        if not challenge_id:
+            raise ValueError(f"Kein challenge_id in x-once-authentication-info: {auth_info_raw}")
+        print(f"[DEBUG] challenge_id: {challenge_id}")
         return challenge_id
 
-    def activate_session(self, session_id: str, challenge_id: str, tan: str = "") -> None:
-        """Step 4: confirm TAN and activate session. tan is empty for PushTAN."""
+    def activate_session(self, session_id: str, challenge_id: str, tan: str = "") -> bool:
+        """Step 4: confirm TAN and activate session. tan is empty for PushTAN.
+        Returns False if PushTAN not yet confirmed (422), raises on other errors."""
         headers = self._auth_headers()
         headers["x-once-authentication-info"] = json.dumps({"id": challenge_id})
         if tan:
@@ -102,7 +110,10 @@ class ComdirectClient:
             json={"identifier": session_id, "sessionTanActive": True, "activated2FA": True},
             headers=headers,
         )
+        if resp.status_code == 422:
+            return False
         resp.raise_for_status()
+        return True
 
     def get_secondary_token(self) -> None:
         """Step 5: exchange for long-lived secondary token."""
@@ -133,7 +144,7 @@ class ComdirectClient:
             },
             headers={"Accept": "application/json"},
         )
-        if resp.status_code == 401:
+        if resp.status_code in (400, 401):
             return False
         resp.raise_for_status()
         data = resp.json()
@@ -183,10 +194,10 @@ class ComdirectClient:
         date_from = (date.today() - timedelta(days=days_back)).isoformat()
         resp = self.session.get(
             f"{BASE_URL}/api/banking/v1/accounts/{account_id}/transactions",
-            params={"transactionDirection": "CREDIT", "min-bookingDate": date_from},
+            params={"min-bookingDate": date_from},
             headers=self._auth_headers(),
         )
         print(f"[DEBUG] get_transactions status: {resp.status_code}")
-        print(f"[DEBUG] get_transactions response: {resp.text[:500]}")
+        print(f"[DEBUG] get_transactions response: {resp.text[:2000]}")
         resp.raise_for_status()
         return resp.json().get("values", [])

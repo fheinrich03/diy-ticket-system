@@ -5,3 +5,4 @@ worker.log
 __pycache__/
 *.pyc
 venv/
+service_account.json
