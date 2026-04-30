@@ -8,8 +8,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 SHEET_COL_ANMELDECODE = 2   # B
-SHEET_COL_BEZAHLT_EUR = 10  # J
-SHEET_COL_TOTAL       = 9   # I
+SHEET_COL_BEZAHLT_EUR = 9  # J
+SHEET_COL_TOTAL       = 8   # I
 SHEET_COL_PAID        = 4   # D
 
 COLOR_PAID_EXACT   = "#8efaab"  # grün — genau bezahlt

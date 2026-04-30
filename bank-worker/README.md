@@ -1,172 +1,105 @@
 # Bank Worker
 
-Liest stündlich neue Überweisungen vom Comdirect-Konto und verarbeitet sie.
+Läuft dauerhaft und prüft alle 1 Minute neue Überweisungen auf dem Comdirect-Konto. Bei einer passenden Transaktion wird der Zahlungsstatus automatisch im Google Sheet aktualisiert.
 
 ## Voraussetzungen
 
 - Python 3.11+
 - Comdirect Developer-Account + registrierte App → [https://developer.comdirect.de](https://developer.comdirect.de)
-- Aus der registrierten App: `Client ID` und `Client Secret`
-
-## Client ID und Client Secret besorgen
-
-1. Gehe auf [https://developer.comdirect.de](https://developer.comdirect.de) und registriere dich
-2. Nach Login: **"My Apps"** → **"Create App"**
-3. App-Name und Beschreibung eingeben (z.B. "Ticket Worker")
-4. Als **Redirect URI** kannst du `http://localhost` eintragen — wird für diesen Worker nicht aktiv genutzt
-5. Nach dem Erstellen siehst du `Client ID` und `Client Secret` in den App-Details
-
-> Die App muss mit deinem echten Comdirect-Kundenkonto verknüpft sein — du loggst dich in `setup.py` mit deiner normalen Kundennummer und PIN ein.
+- Google Service Account mit Zugriff auf das Sheet (siehe unten)
 
 ## Setup
 
+### 1. Virtuelle Umgebung & Dependencies
+
 ```bash
 python3 -m venv venv
-source venv/bin/activate # fish shell: source venv/bin/activate.fish
+source venv/bin/activate       # Bash/Zsh
+source venv/bin/activate.fish  # Fish Shell
 pip install -r requirements.txt
 ```
 
-Lege eine `.env`-Datei an (wird nicht committet):
+### 2. Konfiguration
 
-```env
-COMDIRECT_CLIENT_ID=deine_client_id
-COMDIRECT_CLIENT_SECRET=dein_client_secret
-COMDIRECT_USERNAME=deine_kundennummer
-COMDIRECT_PIN=deine_pin
+```bash
+cp example.env .env
+# .env ausfüllen — Kommentare in der Datei erklären woher die Werte kommen
 ```
+
+### 3. Google Service Account
+
+1. [Google Cloud Console](https://console.cloud.google.com) → Projekt auswählen oder neu anlegen
+2. **APIs & Dienste → Credentials → Create Credentials → Service Account**
+3. Service Account erstellen, dann unter **Keys → Add Key → JSON** herunterladen
+4. Die heruntergeladene Datei als `service_account.json` in diesen Ordner legen
+5. Das Google Sheet mit der E-Mail-Adresse des Service Accounts teilen (Editor-Rechte)
+
+> `service_account.json` und `.env` nie committen — stehen in `.gitignore`
 
 ## Einmalig: Authentifizierung mit PushTAN
 
-Muss einmalig ausgeführt werden — danach läuft der Worker automatisch.
+Muss einmalig ausgeführt werden, danach läuft der Worker automatisch weiter und erneuert Tokens selbstständig.
 
-```fish
-# Fish Shell
-env (cat .env | grep -v '^#') python setup.py
-
+```bash
 # Bash/Zsh
-export $(cat .env | xargs) && python setup.py
+export $(cat .env | xargs) && python auth_setup.py
+
+# Fish Shell
+env (cat .env | grep -v '^#') python auth_setup.py
 ```
 
 Ablauf:
 1. Script loggt sich ein
 2. PushTAN-Anfrage erscheint in der Comdirect App → bestätigen
-3. `tokens.json` wird gespeichert
+3. Enter drücken → `tokens.json` wird gespeichert
 
-> `tokens.json` und `.env` nie committen — stehen in `.gitignore`
+> Bei abgelaufenem Refresh-Token startet `main.py` den Auth-Flow automatisch neu (PushTAN erneut nötig).
 
----
+## Worker starten
 
-## Lokal testen
-
-### 1. Einmalig ausführen
-
-```fish
-# Fish Shell
-env (cat .env | grep -v '^#') python main.py
-
+```bash
 # Bash/Zsh
 export $(cat .env | xargs) && python main.py
+
+# Fish Shell
+env (cat .env | grep -v '^#') python main.py
 ```
 
-Ausgabe erscheint im Terminal + in `worker.log`.
+Der Worker läuft dauerhaft und pollt alle 1 Minute. Logs erscheinen im Terminal und in `worker.log`.
 
-### 2. Transaktionen simulieren (ohne echte API)
-
-Für schnelle Tests ohne Bank-API: `client.py` temporär mocken.
+## Lokale Tests ohne echte Bank-API
 
 Erstelle `mock_run.py`:
 
 ```python
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from main import handle_transaction
 
 fake_tx = {
-    "transactionId": "TEST-001",
-    "remittanceInfo": "A1B2C3D4",   # simulierter Ticket-Code
+    "reference": "TEST-001",
+    "remittanceInfo": "01NR69QDZ5                          ",
     "amount": {"value": "6.00", "unit": "EUR"},
-    "debtor": {"holderName": "Max Mustermann"},
+    "remitter": {"holderName": "Max Mustermann"},
 }
 
-handle_transaction(fake_tx)
+sheet = MagicMock()
+handle_transaction(fake_tx, sheet)
 ```
 
 ```bash
 python mock_run.py
 ```
 
-So kannst du `handle_transaction()` entwickeln ohne echte Überweisungen.
-
-### 3. Token abgelaufen simulieren
-
-```bash
-echo '{"access_token":"invalid","refresh_token":"invalid","session_id":"test"}' > tokens.json
-python main.py
-# → Fehler: "Token abgelaufen — bitte setup.py erneut ausführen"
-```
-
----
-
-## Server-Deployment
-
-### 1. Code auf Server kopieren
-
-```bash
-rsync -av --exclude='tokens.json' --exclude='.env' --exclude='__pycache__' \
-  ./bank-worker/ user@server:/opt/bank-worker/
-```
-
-### 2. Auf dem Server einrichten
-
-```bash
-ssh user@server
-cd /opt/bank-worker
-pip install -r requirements.txt
-
-# .env anlegen
-nano .env  # Werte eintragen
-
-# Einmalig authentifizieren (PushTAN nötig)
-export $(cat .env | xargs) && python setup.py  # Bash
-```
-
-### 3. Cron-Job einrichten
-
-```bash
-crontab -e
-```
-
-```cron
-0 * * * * cd /opt/bank-worker && export $(cat .env | xargs) && python main.py >> worker.log 2>&1
-```
-
-### 4. Logs prüfen
-
-```bash
-tail -f /opt/bank-worker/worker.log
-```
-
----
-
-## Token abgelaufen (Fehlerfall)
-
-Wenn `worker.log` meldet: `Token abgelaufen — bitte setup.py erneut ausführen`
-
-```bash
-ssh user@server
-cd /opt/bank-worker
-export $(cat .env | xargs) && python setup.py   # PushTAN erneut bestätigen
-```
-
----
-
 ## Dateien
 
 | Datei | Beschreibung |
 |---|---|
 | `client.py` | Comdirect API Client |
-| `setup.py` | Einmalige Authentifizierung |
-| `main.py` | Cron-Job Worker |
+| `auth_setup.py` | Einmalige Authentifizierung (PushTAN) |
+| `main.py` | Dauerhaft laufender Worker |
+| `sheet.py` | Google Sheets Integration |
 | `tokens.json` | Gespeicherte Tokens (auto-generiert) |
 | `seen_transactions.json` | Bereits verarbeitete Transaktions-IDs |
 | `worker.log` | Log-Ausgabe |
+| `service_account.json` | Google Service Account Credentials (nicht committen) |
 | `.env` | Zugangsdaten (nicht committen) |
