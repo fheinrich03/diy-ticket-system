@@ -10,9 +10,6 @@ import requests
 BASE_URL = "https://api.comdirect.de"
 TOKEN_FILE = Path(__file__).parent / "tokens.json"
 
-CLIENT_ID = "user"
-CLIENT_SECRET = "secret"
-
 
 class ComdirectClient:
     def __init__(self, client_id: str, client_secret: str):
@@ -45,9 +42,6 @@ class ComdirectClient:
 
     def login(self, username: str, pin: str) -> dict:
         """Step 1: password grant — returns access token (session not yet validated)."""
-        print(f"[DEBUG] login client_id: '{self.client_id}'")
-        print(f"[DEBUG] login username: '{username}'")
-        print(f"[DEBUG] login pin length: {len(pin) if pin else 0}")
         resp = self.session.post(
             f"{BASE_URL}/oauth/token",
             data={
@@ -59,8 +53,6 @@ class ComdirectClient:
             },
             headers={"Accept": "application/json"},
         )
-        print(f"[DEBUG] login status: {resp.status_code}")
-        print(f"[DEBUG] login response: {resp.text}")
         resp.raise_for_status()
         data = resp.json()
         self.access_token = data["access_token"]
@@ -73,8 +65,6 @@ class ComdirectClient:
             f"{BASE_URL}/api/session/clients/user/v1/sessions",
             headers=self._auth_headers(),
         )
-        print(f"[DEBUG] get_session status: {resp.status_code}")
-        print(f"[DEBUG] get_session response: {resp.text}")
         resp.raise_for_status()
         sessions = resp.json()
         return sessions[0] if sessions else {}
@@ -88,14 +78,11 @@ class ComdirectClient:
             json={"identifier": session_id, "sessionTanActive": True, "activated2FA": True},
             headers=headers,
         )
-        print(f"[DEBUG] request_tan status: {resp.status_code}")
-        print(f"[DEBUG] request_tan x-once-authentication-info: {resp.headers.get('x-once-authentication-info')}")
         resp.raise_for_status()
         auth_info_raw = resp.headers.get("x-once-authentication-info", "{}")
         challenge_id = json.loads(auth_info_raw).get("id", "")
         if not challenge_id:
             raise ValueError(f"Kein challenge_id in x-once-authentication-info: {auth_info_raw}")
-        print(f"[DEBUG] challenge_id: {challenge_id}")
         return challenge_id
 
     def activate_session(self, session_id: str, challenge_id: str, tan: str = "") -> bool:
@@ -183,8 +170,6 @@ class ComdirectClient:
             f"{BASE_URL}/api/banking/clients/user/v2/accounts/balances",
             headers=self._auth_headers(),
         )
-        print(f"[DEBUG] get_accounts status: {resp.status_code}")
-        print(f"[DEBUG] get_accounts response: {resp.text[:500]}")
         resp.raise_for_status()
         return resp.json().get("values", [])
 
@@ -197,7 +182,5 @@ class ComdirectClient:
             params={"min-bookingDate": date_from},
             headers=self._auth_headers(),
         )
-        print(f"[DEBUG] get_transactions status: {resp.status_code}")
-        print(f"[DEBUG] get_transactions response: {resp.text[:2000]}")
         resp.raise_for_status()
         return resp.json().get("values", [])
