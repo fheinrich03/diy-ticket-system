@@ -22,3 +22,8 @@ const PAYMENT_DEADLINE = "Freitag, 29. Mai 2026";
 // ─── Zahlung ───────────────────────────────────────────────────────────────
 const IBAN          = "DE17 2004 1111 0291 8191 00";
 const ORG_NAME      = "al-Badr";
+
+// ─── Farben (Sheet-Zeilen) ──────────────────────────────────────────────────
+const COLOR_PAID_EXACT   = "#8efaab"; // grün — genau bezahlt
+const COLOR_PAID_OVER    = "#b7e1cd"; // hellgrün — zu viel bezahlt
+const COLOR_PAID_PARTIAL = "#fadc82"; // gelb — teilbezahlt
