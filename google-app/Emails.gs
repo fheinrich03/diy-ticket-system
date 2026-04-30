@@ -65,29 +65,6 @@ function sendRegistrationEmail(name, email, adults, kids, total, code) {
               </tr>
             </table>
 
-            <!-- PayPal -->
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e9ecef;border-radius:6px;margin-bottom:24px">
-              <tr>
-                <td style="background:#f8f9fa;padding:10px 20px">
-                  <p style="margin:0;color:#555;font-weight:bold;font-size:14px">PayPal (Freunde &amp; Familie)</p>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:16px 20px;font-size:14px;color:#333">
-                  <table cellpadding="4" style="width:100%">
-                    <tr>
-                      <td style="color:#777;width:160px">Link</td>
-                      <td><a href="https://${PAYPAL_LINK}" style="color:#1a5276">${PAYPAL_LINK}</a></td>
-                    </tr>
-                    <tr>
-                      <td style="color:#777">Betreff</td>
-                      <td><strong style="color:#c0392b;font-size:16px;letter-spacing:1px">${code}</strong></td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-
             <p style="color:#777;font-size:13px;line-height:1.6;margin:0 0 24px">
               Nach Zahlungseingang erhältst du dein Ticket per E-Mail. Bitte gib bei der Zahlung
               unbedingt deinen Code als Verwendungszweck an, damit wir deine Zahlung zuordnen können.
