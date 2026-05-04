@@ -36,9 +36,30 @@ cp example.env .env
 
 > `service_account.json` und `.env` nie committen — stehen in `.gitignore`
 
-## Einmalig: Authentifizierung mit PushTAN
+## Authentifizierung via Telegram Bot
 
-Muss einmalig ausgeführt werden, danach läuft der Worker automatisch weiter und erneuert Tokens selbstständig.
+Auth wird über den Telegram Bot gesteuert — kein SSH nötig, PushTAN kommt nur wenn du es explizit auslöst.
+
+### Bot-Commands
+
+| Command | Funktion |
+|---|---|
+| `/auth` | Phase 1: Login + PushTAN auslösen |
+| `/confirm` | Phase 2: Session aktivieren + `tokens.json` speichern |
+| `/start_worker` | `systemctl start bank-worker` |
+| `/status` | `systemctl status bank-worker` |
+| `/help` | Command-Übersicht |
+
+### Auth-Flow
+
+1. `/auth` im Telegram-Chat senden
+2. PushTAN erscheint in der Comdirect App → bestätigen
+3. `/confirm` senden → `tokens.json` gespeichert
+4. `/start_worker` senden
+
+Bei abgelaufenem Token beendet sich `main.py` mit Exit-Code 42 (kein Neustart via systemd) und sendet eine Telegram-Nachricht. Dann wieder ab Schritt 1.
+
+### Erstmalig lokal ausführen (ohne systemd)
 
 ```bash
 # Bash/Zsh
@@ -48,14 +69,22 @@ export $(cat .env | xargs) && python auth_setup.py
 env (cat .env | grep -v '^#') python auth_setup.py
 ```
 
-Ablauf:
-1. Script loggt sich ein
-2. PushTAN-Anfrage erscheint in der Comdirect App → bestätigen
-3. Enter drücken → `tokens.json` wird gespeichert
+## Deployment (systemd)
 
-> Bei abgelaufenem Refresh-Token startet `main.py` den Auth-Flow automatisch neu (PushTAN erneut nötig).
+```bash
+# Services einrichten
+sudo cp setup/bank-worker.service /etc/systemd/system/
+sudo cp setup/bank-worker-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload
 
-## Worker starten
+# Bot immer starten (läuft dauerhaft)
+sudo systemctl enable --now bank-worker-bot
+
+# Worker erst nach Auth via Bot starten (/start_worker)
+sudo systemctl enable bank-worker
+```
+
+## Worker lokal starten
 
 ```bash
 # Bash/Zsh
@@ -65,7 +94,7 @@ export $(cat .env | xargs) && python main.py
 env (cat .env | grep -v '^#') python main.py
 ```
 
-Der Worker läuft dauerhaft und pollt alle 1 Minute. Logs erscheinen im Terminal und in `worker.log`.
+Logs erscheinen im Terminal, in `worker.log` und `bot.log`.
 
 ## Lokale Tests ohne echte Bank-API
 
@@ -95,11 +124,15 @@ python mock_run.py
 | Datei | Beschreibung |
 |---|---|
 | `client.py` | Comdirect API Client |
-| `auth_setup.py` | Einmalige Authentifizierung (PushTAN) |
+| `auth_setup.py` | Einmalige Authentifizierung lokal (PushTAN) |
 | `main.py` | Dauerhaft laufender Worker |
+| `telegram_bot.py` | Telegram Bot (Auth-Control + Worker-Steuerung) |
 | `sheet.py` | Google Sheets Integration |
+| `setup/bank-worker.service` | systemd Unit für den Worker |
+| `setup/bank-worker-bot.service` | systemd Unit für den Telegram Bot |
 | `tokens.json` | Gespeicherte Tokens (auto-generiert) |
 | `seen_transactions.json` | Bereits verarbeitete Transaktions-IDs |
-| `worker.log` | Log-Ausgabe |
+| `worker.log` | Log-Ausgabe Worker |
+| `bot.log` | Log-Ausgabe Telegram Bot |
 | `service_account.json` | Google Service Account Credentials (nicht committen) |
 | `.env` | Zugangsdaten (nicht committen) |
