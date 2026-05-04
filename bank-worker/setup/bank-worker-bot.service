@@ -1,0 +1,14 @@
+[Unit]
+Description=Bank Worker Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/bank-worker
+EnvironmentFile=/opt/bank-worker/.env
+ExecStart=/opt/bank-worker/venv/bin/python telegram_bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

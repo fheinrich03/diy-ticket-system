@@ -1,7 +1,7 @@
 """
 Bank-Worker: läuft dauerhaft, prüft alle 5 Minuten neue Überweisungen auf Comdirect.
 Token wird alle 5 Minuten refresht (gültig: ~10–20 Min, Retry: 3×, Abstand: 1 Min).
-Bei abgelaufenem Refresh-Token wird automatisch auth_setup.py ausgeführt (PushTAN nötig).
+Bei abgelaufenem Refresh-Token: Telegram-Nachricht + exit(42) → kein Auto-Reauth mehr.
 """
 
 import json
@@ -12,9 +12,9 @@ import time
 from pathlib import Path
 
 import gspread
+import requests
 from dotenv import load_dotenv
 
-from auth_setup import run_setup
 from client import ComdirectClient
 from sheet import SHEET_COL_ANMELDECODE, SHEET_COL_BEZAHLT_EUR, apply_payment_status, get_sheet
 
@@ -35,6 +35,8 @@ SEEN_FILE = Path(__file__).parent / "seen_transactions.json"
 POLL_INTERVAL = 1 * 60   # 1 Minute
 REFRESH_RETRIES = 3
 REFRESH_RETRY_DELAY = 60  # 1 Minute zwischen Retries
+
+AUTH_REQUIRED_EXIT_CODE = 42  # systemd RestartPreventExitStatus=42
 
 
 def load_seen() -> set[str]:
@@ -87,39 +89,45 @@ def handle_transaction(tx: dict, sheet: gspread.Worksheet) -> None:
         log.error(f"Google Sheets Fehler: {e}")
 
 
-def reauthenticate(client: ComdirectClient, client_id: str, client_secret: str) -> bool:
-    """Führt vollständigen Auth-Flow (setup) durch und lädt neue Tokens in den Client."""
-    log.info("Starte erneute Authentifizierung (PushTAN erforderlich) ...")
+def notify_auth_required() -> None:
+    """Sendet Telegram-Nachricht dass Auth erforderlich ist."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
     try:
-        new_client = run_setup(client_id, client_secret)
-        client.access_token = new_client.access_token
-        client.refresh_token = new_client.refresh_token
-        client.session_id = new_client.session_id
-        log.info("Erneute Authentifizierung erfolgreich")
-        return True
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": int(chat_id), "text": "Bank-Worker: Auth abgelaufen. /auth senden um neu anzumelden."},
+            timeout=10,
+        )
     except Exception as e:
-        log.error(f"Erneute Authentifizierung fehlgeschlagen: {e}")
-        return False
+        log.error(f"Telegram notify failed: {e}")
 
 
-def refresh_with_retry(client: ComdirectClient, client_id: str, client_secret: str) -> bool:
-    """Versucht Token zu refreshen, 3 Retries mit 1 Min Abstand.
-    Bei abgelaufenem Refresh-Token: automatisch setup/PushTAN-Flow."""
+def auth_required_exit() -> None:
+    """Telegram-Nachricht + Exit mit Code 42 (kein Restart via systemd)."""
+    log.error("Auth abgelaufen — Telegram-Nachricht gesendet, Worker beendet sich (exit 42)")
+    notify_auth_required()
+    sys.exit(AUTH_REQUIRED_EXIT_CODE)
+
+
+def refresh_with_retry(client: ComdirectClient) -> bool:
+    """Versucht Token zu refreshen, 3 Retries mit 1 Min Abstand."""
     for attempt in range(1, REFRESH_RETRIES + 1):
         try:
             if client.refresh():
                 client.save_tokens()
                 return True
             else:
-                log.warning("Refresh-Token abgelaufen — starte automatische Neuanmeldung")
-                return reauthenticate(client, client_id, client_secret)
+                log.warning("Refresh-Token abgelaufen")
+                return False
         except Exception as e:
             log.warning(f"Refresh fehlgeschlagen (Versuch {attempt}/{REFRESH_RETRIES}): {e}")
             if attempt < REFRESH_RETRIES:
                 log.info(f"Retry in {REFRESH_RETRY_DELAY}s ...")
                 time.sleep(REFRESH_RETRY_DELAY)
-    log.warning("Alle Refresh-Versuche fehlgeschlagen — starte automatische Neuanmeldung")
-    return reauthenticate(client, client_id, client_secret)
+    return False
 
 
 def poll(client: ComdirectClient) -> None:
@@ -163,32 +171,27 @@ def run() -> None:
 
     client = ComdirectClient(client_id, client_secret)
 
-    # Cold start: tokens.json fehlt oder Refresh schlägt sofort fehl → direkt setup
+    # Cold start: tokens.json fehlt oder Tokens abgelaufen → Auth via Bot erforderlich
     if not client.load_tokens():
-        log.info("Keine tokens.json — starte Authentifizierung (PushTAN erforderlich) ...")
-        if not reauthenticate(client, client_id, client_secret):
-            log.error("Authentifizierung fehlgeschlagen — Worker beendet sich")
-            sys.exit(1)
+        log.info("Keine tokens.json — Auth via Telegram Bot erforderlich")
+        auth_required_exit()
+
+    # tokens.json vorhanden — einmal testen ob noch gültig
+    try:
+        valid = client.refresh()
+    except Exception:
+        valid = False
+    if valid:
+        client.save_tokens()
     else:
-        # tokens.json vorhanden — einmal ohne Retries testen ob noch gültig
-        try:
-            valid = client.refresh()
-        except Exception:
-            valid = False
-        if valid:
-            client.save_tokens()
-        else:
-            log.info("Tokens abgelaufen — starte Authentifizierung (PushTAN erforderlich) ...")
-            if not reauthenticate(client, client_id, client_secret):
-                log.error("Authentifizierung fehlgeschlagen — Worker beendet sich")
-                sys.exit(1)
+        log.info("Tokens abgelaufen — Auth via Telegram Bot erforderlich")
+        auth_required_exit()
 
     log.info(f"Bank-Worker gestartet (Poll alle {POLL_INTERVAL // 60} Minuten)")
 
     while True:
-        if not refresh_with_retry(client, client_id, client_secret):
-            log.error("Authentifizierung fehlgeschlagen — Worker beendet sich")
-            sys.exit(1)
+        if not refresh_with_retry(client):
+            auth_required_exit()
 
         try:
             poll(client)

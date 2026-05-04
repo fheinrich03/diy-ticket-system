@@ -1,0 +1,15 @@
+[Unit]
+Description=Bank Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/bank-worker
+EnvironmentFile=/opt/bank-worker/.env
+ExecStart=/opt/bank-worker/venv/bin/python main.py
+Restart=on-failure
+RestartSec=30
+RestartPreventExitStatus=42
+
+[Install]
+WantedBy=multi-user.target

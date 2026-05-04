@@ -2,6 +2,7 @@
 tokens.json
 seen_transactions.json
 worker.log
+bot.log
 __pycache__/
 *.pyc
 venv/
