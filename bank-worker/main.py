@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 
 SEEN_FILE = Path(__file__).parent / "seen_transactions.json"
 
-POLL_INTERVAL = 1 * 60   # 1 Minute
+POLL_INTERVAL = 5 * 60   # 5 Minute
 REFRESH_RETRIES = 3
 REFRESH_RETRY_DELAY = 60  # 1 Minute zwischen Retries
 
