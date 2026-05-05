@@ -10,10 +10,12 @@ Commands:
   /help         — Command-Übersicht
 """
 
+import json
 import logging
 import os
 import subprocess
 import time
+from datetime import date
 from pathlib import Path
 
 import requests
@@ -115,12 +117,64 @@ def handle_start_worker(chat_id: int) -> None:
 
 
 def handle_status(chat_id: int) -> None:
-    result = subprocess.run(
-        ["systemctl", "status", "bank-worker", "--no-pager", "-l"],
-        capture_output=True, text=True
-    )
-    output = (result.stdout + result.stderr).strip()
-    send(chat_id, output[:4000] if output else "Kein Output.")
+    parts = []
+
+    # Service active?
+    result = subprocess.run(["systemctl", "is-active", "bank-worker"], capture_output=True, text=True)
+    active = result.stdout.strip() == "active"
+    parts.append(f"Bank-Worker: {'aktiv' if active else 'inaktiv'}")
+    parts.append("")
+
+    # Total seen transactions
+    seen_file = Path(__file__).parent / "seen_transactions.json"
+    try:
+        seen = json.loads(seen_file.read_text()) if seen_file.exists() else []
+        parts.append(f"Transaktionen gesamt: {len(seen)}")
+    except Exception:
+        parts.append("Transaktionen gesamt: ?")
+
+    # Parse worker.log
+    log_file = Path(__file__).parent / "worker.log"
+    today_str = date.today().isoformat()
+    today_tx = 0
+    last_refresh: str | None = None
+    last_poll: str | None = None
+
+    if log_file.exists():
+        try:
+            with open(log_file) as f:
+                for line in f:
+                    if line.startswith(today_str) and "Überweisung:" in line:
+                        today_tx += 1
+                    if "Token erfolgreich refresht" in line or (
+                        "Refresh" in line and ("fehlgeschlagen" in line or "abgelaufen" in line)
+                    ):
+                        last_refresh = line.rstrip()
+                    if "Poll abgeschlossen" in line or "Fehler beim Poll" in line:
+                        last_poll = line.rstrip()
+        except Exception:
+            pass
+
+    parts.append(f"Transaktionen heute: {today_tx}")
+    parts.append("")
+
+    def ts(line: str) -> str:
+        p = line.split(" ", 2)
+        return p[1][:8] if len(p) >= 2 else "?"
+
+    if last_refresh:
+        ok = "OK" if "erfolgreich" in last_refresh else "FEHLER"
+        parts.append(f"Letzter Refresh: {ts(last_refresh)} [{ok}]")
+    else:
+        parts.append("Letzter Refresh: keine Info")
+
+    if last_poll:
+        ok = "OK" if "abgeschlossen" in last_poll else "FEHLER"
+        parts.append(f"Letzter Poll: {ts(last_poll)} [{ok}]")
+    else:
+        parts.append("Letzter Poll: keine Info")
+
+    send(chat_id, "\n".join(parts))
 
 
 def handle_help(chat_id: int) -> None:

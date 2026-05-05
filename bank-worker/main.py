@@ -163,6 +163,7 @@ def poll(client: ComdirectClient) -> None:
             new_seen.add(raw_ref)
 
     save_seen(new_seen)
+    log.info("Poll abgeschlossen")
 
 
 def run() -> None:
